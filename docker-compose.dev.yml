@@ -1,0 +1,61 @@
+services:
+  # PostgreSQL Database for development (simulating Neon Local)
+  neon-local:
+    image: postgres:15-alpine
+    container_name: neon-local
+    env_file:
+      - .env.development
+    ports:
+      - "5432:5432"
+    volumes:
+      - neon_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neondb_owner -d neondb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  # Application service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: acquisitions-app-dev
+    depends_on:
+      neon-local:
+        condition: service_healthy
+    env_file:
+      - .env.development
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for development (hot reload)
+      - ./src:/app/src:ro
+      - ./logs:/app/logs
+      # Mount node_modules as volume for performance
+      - node_modules:/app/node_modules
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Optional: Database management UI
+  adminer:
+    image: adminer:latest
+    container_name: adminer-dev
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  neon_data:
+  node_modules:
+
+networks:
+  app-network:
+    driver: bridge

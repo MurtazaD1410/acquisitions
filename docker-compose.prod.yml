@@ -1,0 +1,59 @@
+services:
+  # Production Application service (connects directly to Neon Cloud)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: acquisitions-app-prod
+    environment:
+      # These should be provided via environment variables or secrets
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-3000}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      # Neon API Configuration
+      - NEON_API_KEY=${NEON_API_KEY}
+      - NEON_PROJECT_ID=${NEON_PROJECT_ID}
+      - NEON_BRANCH_ID=${NEON_BRANCH_ID}
+      # Arcjet Configuration
+      - ARCJET_KEY=${ARCJET_KEY}
+      # Optional production settings
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      # Only mount logs in production
+      - ./logs:/app/logs
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').request('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).end()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    container_name: acquisitions-nginx-prod
+    ports:
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # Mount SSL certificates if using HTTPS
+      # - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge

@@ -18,8 +18,8 @@ const aj = arcjet({
     }),
     slidingWindow({
       mode: "LIVE",
-      interval: "1m",
-      max: 10,
+      interval: 2,
+      max: 5,
       name: "rate-limit",
     }),
 
